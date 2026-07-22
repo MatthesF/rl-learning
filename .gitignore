@@ -1,0 +1,21 @@
+.conda/
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+runs/
+models/
+videos/
+wandb/
+
+*.pyc
+*.zip
+*.mp4
+
+# local scratch / build junk
+tmp/
+output/
+*.ipynb
+.DS_Store
