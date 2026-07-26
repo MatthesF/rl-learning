@@ -1,4 +1,4 @@
-# 04 · Policy gradients (REINFORCE)
+# 04 · Policy gradients (REINFORCE and actor-critic)
 
 Everything so far learned a *value* and derived a policy from it (`argmax Q`). REINFORCE
 flips that around: the network **is** the policy. It outputs a probability for each action,
@@ -17,15 +17,20 @@ L = -sum_t  gamma^t * G_t * log pi(a_t | s_t)
 A high `G_t` makes that action more likely next time, a low one makes it less likely.
 That is the whole algorithm: no replay buffer, no target network, no bootstrapping.
 
+The other two scripts in this folder chip away at the variance of that estimate — first by
+subtracting a learned baseline from `G_t`, then by dropping `G_t` altogether in favour of a
+one-step TD error.
+
 ## Files
 
-| File | Start here? | What it shows |
-|------|-------------|---------------|
-| `reinforce_cartpole.py` | **Yes** | Vanilla REINFORCE, Monte Carlo, one update per episode |
-| `reinforce_baseline_cartpole.py` | after | A learned critic `V(s)` subtracted from the return |
+| File | Order | What it shows |
+|------|-------|---------------|
+| `reinforce_cartpole.py` | **1st** | Vanilla REINFORCE, Monte Carlo, one update per episode |
+| `reinforce_baseline_cartpole.py` | 2nd | A learned critic `V(s)` subtracted from the return |
+| `actor_critic_cartpole.py` | 3rd | Same critic, but bootstrapped TD updates every step |
 
-`reinforce_baseline_cartpole.py` imports the policy, the episode runner and the helpers
-from the vanilla script and only changes how the weight on each `log_prob` is computed.
+Each script imports the policy, sampler and helpers from the one before it, so the only
+thing that really changes between them is how the weight on each `log_prob` is computed.
 
 ## Key concepts
 
@@ -47,6 +52,20 @@ from the vanilla script and only changes how the weight on each `log_prob` is co
   `G_t`, with its own optimizer.
 - **Compute both losses before either update**: if the critic steps first, the policy ends
   up using a baseline that has already seen this episode's answer.
+- **TD error instead of the full return**: actor-critic replaces `G_t` with
+  `delta = r + gamma * V(s') - V(s)`, so it can update after one step instead of waiting for
+  the episode to finish. `V(s')` is detached, and a truly terminal state has `V = 0`.
+- **The `I = gamma^t` accumulator**: the book's pseudocode multiplies the *policy* update by
+  `I`, which starts at 1 and is multiplied by `gamma` each step. The critic update does not
+  get it. It is the same discounting the REINFORCE loss applies through `gamma^t`.
+
+## Where the weight on `log_prob` comes from
+
+| Script | Weight on `log pi(a_t|s_t)` | Update timing |
+|--------|-----------------------------|---------------|
+| `reinforce_cartpole.py` | `gamma^t * G_t` | end of episode |
+| `reinforce_baseline_cartpole.py` | `gamma^t * (G_t - V(s_t))` | end of episode |
+| `actor_critic_cartpole.py` | `I * (r + gamma*V(s') - V(s))` | every step |
 
 ## How it differs from DQN
 
@@ -78,6 +97,11 @@ from the vanilla script and only changes how the weight on each `log_prob` is co
    could lower its own loss by corrupting `V(s)` instead of improving the policy.
 10. **One optimizer for two networks.** `Adam(policy.parameters())` never updates the critic;
     each network needs its own optimizer (or one built over both parameter sets).
+11. **Calling `td_error.backward()` for the critic.** With `V(s')` still on the graph that
+    trains both ends of the TD error towards each other. `V(s')` has to be detached so the
+    target is a fixed number the critic regresses onto.
+12. **Forgetting to bootstrap to zero.** Without the `terminated` check the critic keeps
+    bootstrapping off a state the episode already ended in.
 
 ## What "good" looks like
 
@@ -92,6 +116,18 @@ With the baseline, the same run is **visibly smoother**: the curve still wobbles
 deep collapses largely disappear and the recorded rollouts look far steadier. That is the
 whole point of the critic.
 
+Actor-critic learns from every step rather than every episode, but that also makes it by far
+the **slowest per episode**: one backward pass per timestep instead of one per episode. On a
+500-step CartPole episode that is 500 updates. Two other things worth knowing:
+
+- With `I = gamma^t` and `gamma = 0.99`, a step 500 frames in is scaled by `0.99^500`, about
+  `0.007`. Late-episode actions barely move the policy. That is genuinely what the
+  discounted objective in the book says; many practical implementations drop `I` for exactly
+  this reason, which trades textbook fidelity for faster learning on long episodes.
+- The critic uses plain squared error here, because `w <- w + alpha * delta * grad V` is
+  exactly the gradient of `0.5 * (target - V)^2`. Elsewhere in this repo the critic uses
+  Huber loss, which is more robust to large errors but no longer matches the book's update.
+
 From here the next step is PPO, which reuses the advantage idea and adds a clipped
 objective plus several epochs over the same batch of rollouts.
 
@@ -101,9 +137,12 @@ objective plus several epochs over the same batch of rollouts.
 # Start here
 python rl_learning/04_policy_gradients/reinforce_cartpole.py
 
-# After that works
+# Then
 python rl_learning/04_policy_gradients/reinforce_baseline_cartpole.py
+
+# Slowest, but updates every step
+python rl_learning/04_policy_gradients/actor_critic_cartpole.py
 ```
 
 Set `RECORD_VIDEO = True` in `reinforce_cartpole.py` to save a greedy rollout under
-`videos/` (both scripts read that flag).
+`videos/` (all three scripts read that flag).
