@@ -9,13 +9,10 @@ runs/
 models/
 videos/
 wandb/
-
+tmp/
+output/
 *.pyc
 *.zip
 *.mp4
-
-# local scratch / build junk
-tmp/
-output/
 *.ipynb
 .DS_Store

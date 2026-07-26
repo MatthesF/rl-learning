@@ -1,7 +1,8 @@
 # Reinforcement Learning, from scratch
 
 A hands-on walk through classic reinforcement learning, one small algorithm at a time:
-tabular methods, then linear function approximation, then deep Q-learning.
+tabular methods, then linear function approximation, then deep Q-learning, then policy
+gradients.
 
 Each algorithm lives in its own self-contained script you can read top to bottom in a
 few minutes, run in one command, and tweak from a small block of hyperparameters at the top.
@@ -25,6 +26,9 @@ call out the specific bugs I hit, because those were the moments that taught me 
    Tile coding turns it into sparse features and Q becomes a linear function of weights.
 3. **Deep RL** — replace the linear model with a neural network (DQN), add a replay
    buffer and a target network, then fix the instabilities with Double DQN.
+4. **Policy gradients** — stop learning values and optimise the policy directly. REINFORCE
+   samples actions from its own distribution and reinforces whatever worked, then a learned
+   baseline `V(s)` cuts the variance that makes it wobble.
 
 ```text
 rl_learning/
@@ -37,6 +41,9 @@ rl_learning/
   03_deep_rl/
     dqn_cartpole.py                       DQN
     double_dqn_cartpole.py                Double DQN
+  04_policy_gradients/
+    reinforce_cartpole.py                 start here
+    reinforce_baseline_cartpole.py        + learned baseline V(s)
 ```
 
 ## What "good" looks like
@@ -48,6 +55,8 @@ rl_learning/
 | Q-learning vs SARSA | CliffWalking | ~-13 (risky) vs ~-17 (safer) |
 | Tile-coding SARSA | MountainCar | returns climb from -200 toward ~-110 to -150 |
 | DQN / Double DQN | CartPole | greedy eval well above 200, often near 500 |
+| REINFORCE | CartPole | moving average ~300-400, but visibly noisier than DQN |
+| REINFORCE + baseline | CartPole | similar level, noticeably smoother curve |
 
 Numbers vary with seed and hyperparameters. Always judge a policy with **greedy
 evaluation** (epsilon = 0), not the noisy training curve while exploration is still high.
@@ -80,6 +89,8 @@ python rl_learning/02_function_approximation/one_step_sarsa_mountaincar.py
 python rl_learning/02_function_approximation/n_step_sarsa_mountaincar.py
 python rl_learning/03_deep_rl/dqn_cartpole.py
 python rl_learning/03_deep_rl/double_dqn_cartpole.py
+python rl_learning/04_policy_gradients/reinforce_cartpole.py
+python rl_learning/04_policy_gradients/reinforce_baseline_cartpole.py
 ```
 
 Set `RECORD_VIDEO = True` in the MountainCar / CartPole scripts to save a greedy
