@@ -1,109 +1,98 @@
-# Reinforcement Learning, from scratch
+# rl-learning
 
-A hands-on walk through classic reinforcement learning, one small algorithm at a time:
-tabular methods, then linear function approximation, then deep Q-learning, then policy
-gradients.
+Classic reinforcement learning from scratch, one algorithm per file. No framework, no config
+system, no abstractions to trace through — every script is self-contained, runs with
+`python <file>`, and is short enough to read in one sitting.
 
-Each algorithm lives in its own self-contained script you can read top to bottom in a
-few minutes, run in one command, and tweak from a small block of hyperparameters at the top.
-
-## How this was built
-
-I wrote the first versions of everything here in a Jupyter notebook while learning,
-making the usual beginner mistakes and fixing them one by one. Once each algorithm
-actually worked, I sat down with an LLM to refactor the messy notebook cells into these
-clean, commented `.py` files, keeping the logic identical but making it readable.
-
-So this folder is the *polished* version of a genuine learning process. The comments
-call out the specific bugs I hit, because those were the moments that taught me the most.
+Written while learning: first in a notebook, then cleaned up into these files.
 
 ## The path
 
-1. **Tabular** — a plain table of `Q(state, action)` values. No neural nets, no
-   approximation. The place to understand TD updates, exploration, and on-policy vs
-   off-policy control.
-2. **Function approximation** — the state becomes continuous, so a table no longer fits.
-   Tile coding turns it into sparse features and Q becomes a linear function of weights.
-3. **Deep RL** — replace the linear model with a neural network (DQN), add a replay
-   buffer and a target network, then fix the instabilities with Double DQN.
-4. **Policy gradients** — stop learning values and optimise the policy directly. REINFORCE
-   samples actions from its own distribution and reinforces whatever worked, then a learned
-   baseline `V(s)` cuts the variance. Actor-critic replaces the Monte Carlo return with a
-   one-step TD error so the update can happen every timestep.
-
 ```text
-rl_learning/
-  01_tabular/
-    q_learning_frozenlake.py              first Q-table
-    q_learning_vs_sarsa_cliffwalking.py   off-policy vs on-policy
-  02_function_approximation/
-    one_step_sarsa_mountaincar.py         start here
-    n_step_sarsa_mountaincar.py           n-step returns (harder)
-  03_deep_rl/
-    dqn_cartpole.py                       DQN
-    double_dqn_cartpole.py                Double DQN
-  04_policy_gradients/
-    reinforce_cartpole.py                 start here
-    reinforce_baseline_cartpole.py        + learned baseline V(s)
-    actor_critic_cartpole.py              TD actor-critic (I = gamma^t)
+01_tabular/
+  q_learning_frozenlake.py              a Q-table you can print
+  q_learning_vs_sarsa_cliffwalking.py   off-policy vs on-policy, same plot
+
+02_function_approximation/
+  one_step_sarsa_mountaincar.py         continuous state -> tile features -> linear Q
+  n_step_sarsa_mountaincar.py           look n steps ahead before bootstrapping
+
+03_deep_rl/
+  dqn_cartpole.py                       Q is a network: replay buffer + target network
+  double_dqn_cartpole.py                one line less overestimation
+
+04_policy_gradients/
+  reinforce_cartpole.py                 learn the policy directly, no Q at all
+  reinforce_baseline_cartpole.py         subtract V(s) to cut the variance
+  actor_critic_cartpole.py              bootstrap instead of waiting for the return
+  gae_cartpole.py                       one lambda between those two extremes
 ```
 
+Later files import from earlier ones in the same folder, so the diff between two algorithms
+is the algorithm.
+
+## Everything here is one of two updates
+
+**Value methods** nudge an estimate towards a target:
+
+```text
+Q(s,a) += alpha * (target - Q(s,a))
+```
+
+Only `target` changes:
+
+| | `target` |
+|---|---|
+| Q-learning | `r + gamma * max_a' Q(s',a')` |
+| SARSA | `r + gamma * Q(s',a')`, `a'` = the action actually taken next |
+| n-step SARSA | `r_1 + ... + gamma^(n-1) r_n + gamma^n Q(s_n,a_n)` |
+| DQN | Q-learning's target, but `Q` is a network and `s'` goes through a frozen copy |
+| Double DQN | `r + gamma * Q_target(s', argmax_a' Q_online(s',a'))` |
+
+**Policy methods** push up the log-probability of actions that went well:
+
+```text
+loss = -sum_t  gamma^t * weight_t * log pi(a_t | s_t)
+```
+
+Only `weight` changes:
+
+| | `weight_t` |
+|---|---|
+| REINFORCE | `G_t`, the return that actually followed |
+| + baseline | `G_t - V(s_t)` |
+| Actor-critic | `r + gamma * V(s') - V(s)`, one step only |
+| GAE | those TD errors, exponentially weighted by `lambda` |
+
+Two details show up in every single file:
+
+- **Terminal states have no future.** On `terminated` the target is just `r`. A `truncated`
+  time limit is not a terminal state, so it still bootstraps from `s'`.
+- **Evaluate greedily.** The training curve is noisy because exploration is on. Judge a
+  policy with `epsilon = 0` (or `argmax` over the policy).
 
 ## What "good" looks like
 
-| Algorithm | Environment | Rough target |
-|-----------|-------------|--------------|
-| Q-learning | FrozenLake (deterministic) | success rate ~1.0 |
-| Q-learning | FrozenLake (slippery) | success rate ~0.7-0.85 |
-| Q-learning vs SARSA | CliffWalking | ~-13 (risky) vs ~-17 (safer) |
-| Tile-coding SARSA | MountainCar | returns climb from -200 toward ~-110 to -150 |
-| DQN / Double DQN | CartPole | greedy eval well above 200, often near 500 |
-| REINFORCE | CartPole | moving average ~300-400, but visibly noisier than DQN |
-| REINFORCE + baseline | CartPole | similar level, noticeably smoother curve |
-| One-step actor-critic | CartPole | can climb toward 200+, but online TD updates are slower and more fragile than REINFORCE |
+| Script | Rough target |
+|---|---|
+| Q-learning, FrozenLake (deterministic) | success rate ~1.0 |
+| Q-learning, FrozenLake (slippery) | ~0.7-0.85 |
+| Q-learning vs SARSA, CliffWalking | ~-13 along the cliff vs ~-17 the safe way |
+| Tile-coding SARSA, MountainCar | -200 climbing to ~-150 or better |
+| DQN / Double DQN, CartPole | greedy eval near the 500 cap |
+| REINFORCE, CartPole | ~300-400, noticeably noisier than DQN |
+| REINFORCE + baseline | same level, smoother |
+| Actor-critic | reaches the cap on a good run, collapses to ~9 on a bad one |
+| GAE, `lambda=0.95` | into the 300s; greedy eval anywhere from ~200 to the cap |
 
-Numbers vary with seed and hyperparameters. Always judge a policy with **greedy
-evaluation** (epsilon = 0), not the noisy training curve while exploration is still high.
+Numbers move a lot with the seed, and the policy-gradient scripts move most.
 
-## Setup
-
-These scripts need `gymnasium`, `numpy`, `matplotlib`, `torch`, and `tqdm`.
-
-Using the project conda environment:
-
-```bash
-conda activate rl-sim2real
-```
-
-Or a minimal standalone install:
+## Run
 
 ```bash
 pip install gymnasium numpy matplotlib torch tqdm
-```
-
-## Running
-
-Every script runs with no arguments. Change behaviour by editing the small
-`hyperparameters` block at the top of the file.
-
-```bash
 python rl_learning/01_tabular/q_learning_frozenlake.py
-python rl_learning/01_tabular/q_learning_vs_sarsa_cliffwalking.py
-python rl_learning/02_function_approximation/one_step_sarsa_mountaincar.py
-python rl_learning/02_function_approximation/n_step_sarsa_mountaincar.py
-python rl_learning/03_deep_rl/dqn_cartpole.py
-python rl_learning/03_deep_rl/double_dqn_cartpole.py
-python rl_learning/04_policy_gradients/reinforce_cartpole.py
-python rl_learning/04_policy_gradients/reinforce_baseline_cartpole.py
-python rl_learning/04_policy_gradients/actor_critic_cartpole.py
 ```
 
-Set `RECORD_VIDEO = True` in the MountainCar / CartPole scripts to save a greedy
-rollout as an `.mp4` under `videos/`.
-
-## Design choices
-
-- One algorithm per file, readable end to end (CleanRL-style).
-- Hyperparameters as named constants at the top, not buried in the code.
-- Learning curves use a moving average so the trend is visible through the noise.
-- No rendering during training; video is opt-in for demos.
+Every script takes no arguments. Change behaviour by editing the constants at the top —
+`SHOW_PLOT`, `RECORD_VIDEO`, `EPISODES`, and the algorithm's own hyperparameters.

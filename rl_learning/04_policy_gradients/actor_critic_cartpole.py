@@ -1,13 +1,21 @@
-"""One-step actor-critic on CartPole-v1 (TD instead of Monte Carlo).
+"""One-step actor-critic on CartPole-v1.
 
-Where REINFORCE waits for the full return G_t, the critic here bootstraps
-after a single step:
+REINFORCE has to wait for the episode to finish before it knows G_t. The critic removes that
+wait by bootstrapping after a single step:
 
     delta = r + gamma * V(s') - V(s)
 
-so the networks are updated on *every* timestep instead of once per episode.
-Follows the episodic one-step actor-critic pseudocode in Sutton & Barto 13.5,
-including the discount accumulator I = gamma^t on the policy update.
+so both networks update on every timestep. This is Sutton & Barto's episodic one-step
+actor-critic (13.5), including the discount accumulator I = gamma^t, which multiplies the
+actor update only.
+
+Worth knowing before you run it: this one is fragile. Runs reach the 500 cap, but they can
+also climb to ~200-350 and then collapse to ~9 and stay there. The failure is policy
+saturation — entropy goes to nearly zero and the logits blow up, so there is no gradient left
+to escape with. A larger critic learning rate makes it worse, and lower actor learning rates,
+Huber loss and an entropy bonus each delay it without fixing it. Updating on every step with
+no limit on how far the policy may move is the problem, and clipping that move is exactly what
+PPO adds.
 
     python rl_learning/04_policy_gradients/actor_critic_cartpole.py
 """
@@ -39,13 +47,10 @@ VALUE_LR = 3e-4
 
 def run_actor_critic_episode(env, policy, value_network, policy_optimizer,
                              value_optimizer, gamma=GAMMA):
-    """Play one episode, updating both networks after every step."""
+    """One episode, with an update after every single step."""
     state, _ = env.reset()
-    episode_return = 0.0
-    done = False
-
-    # I = gamma^t, the discount accumulator from the book's pseudocode.
-    discount = 1.0
+    episode_return, done = 0.0, False
+    discount = 1.0   # I in the book's pseudocode
 
     while not done:
         action, log_prob = sample_action(state, policy)
@@ -55,7 +60,7 @@ def run_actor_critic_episode(env, policy, value_network, policy_optimizer,
         done = terminated or truncated
         episode_return += float(reward)
 
-        # A terminal state has V = 0; a time-limit cutoff should still bootstrap.
+        # V of a terminal state is 0; a time-limit cutoff still bootstraps.
         with torch.no_grad():
             if terminated:
                 next_value = torch.zeros_like(value)
@@ -64,13 +69,13 @@ def run_actor_critic_episode(env, policy, value_network, policy_optimizer,
                     torch.as_tensor(next_state, dtype=torch.float32)
                 ).squeeze(-1)
 
-        td_target = float(reward) + gamma * next_value   # already detached
+        # The target must be a fixed number, or the critic trains both ends of delta
+        # towards each other instead of towards the reward.
+        td_target = float(reward) + gamma * next_value
         delta = td_target - value
 
-        # theta <- theta + alpha * I * delta * grad log pi   (I only on the actor)
         policy_loss = -(discount * delta.detach() * log_prob)
-        # The 1/2 gives exactly w <- w + alpha * delta * grad V.
-        value_loss = 0.5 * delta.pow(2)
+        value_loss = 0.5 * delta.pow(2)   # gradient is exactly delta * grad V
 
         policy_optimizer.zero_grad()
         value_optimizer.zero_grad()
@@ -86,17 +91,13 @@ def run_actor_critic_episode(env, policy, value_network, policy_optimizer,
 
 
 def train_actor_critic(env, policy, value_network, policy_optimizer, value_optimizer,
-                       num_episodes=EPISODES, gamma=GAMMA, desc="Actor-critic CartPole"):
-    returns = []
-
-    for _ in tqdm(range(num_episodes), desc=desc):
-        returns.append(
-            run_actor_critic_episode(
-                env, policy, value_network, policy_optimizer, value_optimizer, gamma
-            )
+                       episodes=EPISODES, gamma=GAMMA, desc="Actor-critic CartPole"):
+    return [
+        run_actor_critic_episode(
+            env, policy, value_network, policy_optimizer, value_optimizer, gamma
         )
-
-    return returns
+        for _ in tqdm(range(episodes), desc=desc)
+    ]
 
 
 def main():

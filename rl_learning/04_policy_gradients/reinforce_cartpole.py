@@ -1,8 +1,13 @@
 """Vanilla REINFORCE on CartPole-v1.
 
-First policy-gradient agent: the network is the policy, not a Q-function.
-Monte Carlo, so there is no replay buffer, no target network, and no
-bootstrapping — one update after each full episode.
+The first method here with no Q at all. The network *is* the policy: it outputs a probability
+per action, we sample from it, and afterwards we push up the log-probability of whatever the
+good episodes did:
+
+    loss = -sum_t  gamma^t * G_t * log pi(a_t | s_t)
+
+No replay buffer, no target network, no bootstrapping. Exploration is free, because the policy
+is random by construction, so there is no epsilon to decay.
 
     python rl_learning/04_policy_gradients/reinforce_cartpole.py
 """
@@ -18,7 +23,6 @@ import torch.nn as nn
 import torch.optim as optim
 from tqdm import tqdm
 
-# ── hyperparameters ──────────────────────────────────────
 SEED = 0
 EPISODES = 1000
 GAMMA = 0.99
@@ -37,22 +41,21 @@ def create_policy_network(n_obs, n_actions):
 
 
 def sample_action(state, policy):
-    """Sample from pi(a|s); the log-prob must stay attached to the graph."""
+    """The returned log-prob must stay attached: it is the only path for gradients."""
     logits = policy(torch.as_tensor(state, dtype=torch.float32))
-    dist = D.Categorical(probs=torch.softmax(logits, dim=-1))
+    dist = D.Categorical(logits=logits)   # logits, not probs: softmax happens internally
     action = dist.sample()
     return int(action.item()), dist.log_prob(action)
 
 
 def greedy_action(state, policy):
-    """Most likely action — used for evaluation and video."""
     with torch.no_grad():
         logits = policy(torch.as_tensor(state, dtype=torch.float32))
     return int(torch.argmax(logits).item())
 
 
 def calculate_returns(rewards, gamma):
-    """G_t = r_{t+1} + gamma * G_{t+1}, computed backwards."""
+    """G_t = r_t + gamma * G_{t+1}, accumulated backwards in one pass."""
     returns = []
     G = 0.0
     for reward in reversed(rewards):
@@ -61,18 +64,18 @@ def calculate_returns(rewards, gamma):
     return list(reversed(returns))
 
 
-def run_episode(env, policy, gamma):
-    """Play one full episode; no update until it ends (Monte Carlo).
+def run_episode(env, policy, gamma=GAMMA):
+    """Play a full episode; Monte Carlo means no update until it ends.
 
-    States are collected before each step, so states[t] is the state the
-    action was chosen in — the baseline version needs that alignment.
+    States are appended before stepping, so states[t] is the state the action was chosen
+    in. The baseline script needs that alignment to compute V(s_t).
     """
     state, _ = env.reset()
     states, log_probs, rewards = [], [], []
     done = False
 
     while not done:
-        states.append(np.asarray(state).copy())
+        states.append(np.asarray(state, dtype=np.float32))
         action, log_prob = sample_action(state, policy)
         state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
@@ -82,20 +85,19 @@ def run_episode(env, policy, gamma):
     return log_probs, calculate_returns(rewards, gamma), sum(rewards), states
 
 
-def compute_loss(log_probs, returns, gamma):
-    """L = -sum_t gamma^t * G_t * log pi(a_t|s_t)  (Sutton & Barto 13.3)."""
+def compute_loss(log_probs, returns, gamma=GAMMA):
     terms = [
         -(gamma ** t) * G * log_prob
         for t, (log_prob, G) in enumerate(zip(log_probs, returns))
     ]
-    return torch.stack(terms).sum()
+    return torch.stack(terms).sum()   # a list of tensors needs stacking, not sum()
 
 
-def train_reinforce(env, policy, optimizer, num_episodes=EPISODES, gamma=GAMMA,
+def train_reinforce(env, policy, optimizer, episodes=EPISODES, gamma=GAMMA,
                     desc="REINFORCE CartPole"):
     returns = []
 
-    for _ in tqdm(range(num_episodes), desc=desc):
+    for _ in tqdm(range(episodes), desc=desc):
         log_probs, discounted_returns, episode_return, _ = run_episode(env, policy, gamma)
         loss = compute_loss(log_probs, discounted_returns, gamma)
 
@@ -109,6 +111,7 @@ def train_reinforce(env, policy, optimizer, num_episodes=EPISODES, gamma=GAMMA,
 
 
 def evaluate(env, policy, n_episodes=20):
+    """Greedy: sample while training, take the argmax when measuring."""
     totals = []
     for _ in range(n_episodes):
         state, _ = env.reset()
