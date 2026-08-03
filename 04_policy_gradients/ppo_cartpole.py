@@ -61,16 +61,21 @@ def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
 
         next_state, reward, terminated, truncated, _ = env.step(int(action.item()))
         done = terminated or truncated
+        episode_return += float(reward)
+
+        if truncated:  # real future, just cut short
+            with torch.no_grad():
+                last_v = float(value_network(
+                    torch.as_tensor(next_state, dtype=torch.float32)).squeeze(-1))
+            reward = reward + GAMMA * last_v
 
         states.append(np.asarray(state, dtype=np.float32))
         actions.append(int(action.item()))
         old_log_probs.append(float(log_prob))
         rewards.append(float(reward))
         values.append(float(value))
-        # Cut the advantage chain on any episode end (incl. CartPole's 500-step truncate).
         dones.append(done)
 
-        episode_return += float(reward)
         if done:
             episode_returns.append(episode_return)
             episode_return = 0.0

@@ -77,6 +77,13 @@ def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
             np.clip(action.numpy(), low, high)
         )
         done = terminated or truncated
+        episode_return += float(reward)
+
+        if truncated:  # real future, just cut short
+            with torch.no_grad():
+                last_v = float(value_network(
+                    torch.as_tensor(next_state, dtype=torch.float32)).squeeze(-1))
+            reward = reward + GAMMA * last_v
 
         states.append(np.asarray(state, dtype=np.float32))
         actions.append(action.numpy())  # unclipped — ratio must match what was sampled
@@ -85,7 +92,6 @@ def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
         values.append(float(value))
         dones.append(done)
 
-        episode_return += float(reward)
         if done:
             episode_returns.append(episode_return)
             episode_return = 0.0
