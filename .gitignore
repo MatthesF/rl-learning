@@ -1,18 +1,9 @@
-.conda/
-.venv/
 __pycache__/
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
+*.py[cod]
 
-runs/
-models/
+# written by RECORD_VIDEO = True
 videos/
-wandb/
-tmp/
-output/
-*.pyc
-*.zip
-*.mp4
-*.ipynb
+
+.venv/
 .DS_Store
+.ipynb_checkpoints/

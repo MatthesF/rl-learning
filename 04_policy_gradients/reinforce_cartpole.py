@@ -9,7 +9,7 @@ good episodes did:
 No replay buffer, no target network, no bootstrapping. Exploration is free, because the policy
 is random by construction, so there is no epsilon to decay.
 
-    python rl_learning/04_policy_gradients/reinforce_cartpole.py
+    python 04_policy_gradients/reinforce_cartpole.py
 """
 
 from pathlib import Path

@@ -12,7 +12,7 @@ are exactly the repairs:
     target network   the target is computed from the same weights being trained, so it
                      moves every step; freeze a copy and refresh it now and then
 
-    python rl_learning/03_deep_rl/dqn_cartpole.py
+    python 03_deep_rl/dqn_cartpole.py
 """
 
 import random

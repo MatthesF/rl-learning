@@ -12,7 +12,7 @@ weights instead of a single cell.
 MountainCar's 200-step limit counts as the end of the episode here, which is why an untrained
 agent sits at exactly -200: one point of cost per step, goal never reached.
 
-    python rl_learning/02_function_approximation/one_step_sarsa_mountaincar.py
+    python 02_function_approximation/one_step_sarsa_mountaincar.py
 """
 
 from pathlib import Path
@@ -111,7 +111,8 @@ def greedy_action(weights, coder, state):
     return int(np.argmax(q_values(weights, coder(state))))
 
 
-def greedy_return(env, weights, coder, n_episodes=20):
+def evaluate(env, weights, coder, n_episodes=20):
+    """Mean return with epsilon = 0."""
     total = 0.0
     for _ in range(n_episodes):
         state, _ = env.reset()
@@ -163,7 +164,7 @@ def main():
     for _ in tqdm(range(EPISODES), desc="1-step SARSA MountainCar"):
         returns.append(sarsa_episode(env, weights, coder))
 
-    print(f"Greedy eval: {greedy_return(env, weights, coder):.1f} (untrained is -200)")
+    print(f"Greedy eval: {evaluate(env, weights, coder):.1f} (untrained is -200)")
 
     if RECORD_VIDEO:
         print(f"Video return: {record_video(weights, coder):.0f} (saved under ./videos/)")

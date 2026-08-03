@@ -10,7 +10,7 @@ ordinary SARSA; larger n propagates the goal reward backwards faster but adds va
 
 Read one_step_sarsa_mountaincar.py first.
 
-    python rl_learning/02_function_approximation/n_step_sarsa_mountaincar.py
+    python 02_function_approximation/n_step_sarsa_mountaincar.py
 """
 
 import gymnasium as gym
@@ -26,7 +26,7 @@ from one_step_sarsa_mountaincar import (
     SHOW_PLOT,
     TileCoder,
     epsilon_greedy,
-    greedy_return,
+    evaluate,
     moving_average,
     q_values,
 )
@@ -99,7 +99,7 @@ def main():
     for _ in tqdm(range(EPISODES), desc=f"{N_STEPS}-step SARSA MountainCar"):
         returns.append(n_step_sarsa_episode(env, weights, coder))
 
-    print(f"Greedy eval (n={N_STEPS}): {greedy_return(env, weights, coder):.1f}")
+    print(f"Greedy eval (n={N_STEPS}): {evaluate(env, weights, coder):.1f}")
 
     if SHOW_PLOT:
         plt.figure(figsize=(8, 4))

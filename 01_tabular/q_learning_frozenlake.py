@@ -7,7 +7,7 @@ currently believe about the next state:
 
 Set SLIPPERY = True for the stochastic ice, which is a much harder problem.
 
-    python rl_learning/01_tabular/q_learning_frozenlake.py
+    python 01_tabular/q_learning_frozenlake.py
 """
 
 import gymnasium as gym
@@ -47,8 +47,8 @@ def q_learning_episode(env, q, epsilon, alpha, gamma):
         state = next_state
 
 
-def greedy_success_rate(env, q, n_episodes=100):
-    """Return with epsilon = 0. FrozenLake pays 1 for the goal, so this is a rate."""
+def evaluate(env, q, n_episodes=100):
+    """Return with epsilon = 0. FrozenLake pays 1 for the goal, so this is a success rate."""
     total = 0.0
     for _ in range(n_episodes):
         state, _ = env.reset()
@@ -68,7 +68,7 @@ def train(env, episodes=EPISODES, epsilon=EPSILON, alpha=ALPHA, gamma=GAMMA,
     for episode in range(episodes):
         q_learning_episode(env, q, epsilon, alpha, gamma)
         if episode % eval_every == 0:
-            curve.append((episode, greedy_success_rate(env, q, 50)))
+            curve.append((episode, evaluate(env, q, 50)))
 
     return q, np.asarray(curve)
 
@@ -81,8 +81,7 @@ def main():
     q, curve = train(env)
 
     mode = "slippery" if SLIPPERY else "deterministic"
-    print(f"FrozenLake ({mode}) greedy success rate: "
-          f"{greedy_success_rate(env, q, 200):.3f}")
+    print(f"FrozenLake ({mode}) greedy success rate: {evaluate(env, q, 200):.3f}")
 
     if SHOW_PLOT:
         plt.figure(figsize=(8, 4))

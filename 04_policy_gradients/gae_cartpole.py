@@ -15,7 +15,7 @@ Nothing else changes: same networks, same loss, one update per episode.
 
 This is also the advantage PPO uses, so it is the last piece before clipped updates.
 
-    python rl_learning/04_policy_gradients/gae_cartpole.py
+    python 04_policy_gradients/gae_cartpole.py
 """
 
 import gymnasium as gym

@@ -11,7 +11,7 @@ Two independent sets of weights have to agree before an action looks good, which
 of the built-in optimism. Everything else — buffer, target sync, loss — is imported unchanged
 from dqn_cartpole.py, so the only difference between the two runs is this target.
 
-    python rl_learning/03_deep_rl/double_dqn_cartpole.py
+    python 03_deep_rl/double_dqn_cartpole.py
 """
 
 import random

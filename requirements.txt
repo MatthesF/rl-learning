@@ -1,6 +1,9 @@
-# Minimal deps for the rl_learning/ scripts
 gymnasium>=0.29
 numpy>=1.24,<2
 matplotlib>=3.7
 torch>=2.0
 tqdm>=4.65
+
+# Only needed when a script has RECORD_VIDEO = True
+# moviepy>=1.0
+# pygame>=2.1

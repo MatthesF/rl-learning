@@ -9,7 +9,7 @@ question — was this action better than expected?
 The expected gradient is unchanged, the variance is much smaller, and the curve stops
 collapsing into the deep dips vanilla REINFORCE produces.
 
-    python rl_learning/04_policy_gradients/reinforce_baseline_cartpole.py
+    python 04_policy_gradients/reinforce_baseline_cartpole.py
 """
 
 import gymnasium as gym

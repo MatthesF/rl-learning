@@ -9,15 +9,13 @@ so both networks update on every timestep. This is Sutton & Barto's episodic one
 actor-critic (13.5), including the discount accumulator I = gamma^t, which multiplies the
 actor update only.
 
-Worth knowing before you run it: this one is fragile. Runs reach the 500 cap, but they can
-also climb to ~200-350 and then collapse to ~9 and stay there. The failure is policy
-saturation — entropy goes to nearly zero and the logits blow up, so there is no gradient left
-to escape with. A larger critic learning rate makes it worse, and lower actor learning rates,
-Huber loss and an entropy bonus each delay it without fixing it. Updating on every step with
-no limit on how far the policy may move is the problem, and clipping that move is exactly what
-PPO adds.
+This one is fragile, and that is worth seeing. Runs reach the 500 cap, but they can also climb
+to 200-350 and then collapse to ~9 and stay there: entropy goes to nearly zero, the logits blow
+up, and no gradient is left to escape with. Lower learning rates and an entropy bonus delay it
+without fixing it. The real problem is that nothing limits how far one step may move the
+policy, which is what PPO adds.
 
-    python rl_learning/04_policy_gradients/actor_critic_cartpole.py
+    python 04_policy_gradients/actor_critic_cartpole.py
 """
 
 import gymnasium as gym

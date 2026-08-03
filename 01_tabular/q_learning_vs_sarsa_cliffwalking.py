@@ -10,7 +10,7 @@ off it while epsilon is still non-zero. SARSA's target includes its own random s
 learns that the cliff edge is expensive and walks around. Off-policy learns the best policy;
 on-policy learns the best policy *given that you explore*.
 
-    python rl_learning/01_tabular/q_learning_vs_sarsa_cliffwalking.py
+    python 01_tabular/q_learning_vs_sarsa_cliffwalking.py
 """
 
 import gymnasium as gym
@@ -61,7 +61,8 @@ def sarsa_episode(env, q, epsilon, alpha, gamma):
         state, action = next_state, next_action
 
 
-def greedy_return(env, q, n_episodes=50):
+def evaluate(env, q, n_episodes=50):
+    """Mean return with epsilon = 0."""
     total = 0.0
     for _ in range(n_episodes):
         state, _ = env.reset()
@@ -85,7 +86,7 @@ def train(env, episode_fn, episodes=EPISODES, epsilon=EPSILON, alpha=ALPHA, gamm
     for episode in range(episodes):
         episode_fn(env, q, epsilon, alpha, gamma)
         if episode % eval_every == 0:
-            curve.append((episode, greedy_return(env, q)))
+            curve.append((episode, evaluate(env, q)))
 
     return q, np.asarray(curve)
 
@@ -96,8 +97,8 @@ def main():
     q_ql, curve_ql = train(env, q_learning_episode)
     q_sarsa, curve_sarsa = train(env, sarsa_episode)
 
-    print(f"Greedy return — Q-learning: {greedy_return(env, q_ql, 200):.1f}")
-    print(f"Greedy return — SARSA:      {greedy_return(env, q_sarsa, 200):.1f}")
+    print(f"Greedy return, Q-learning: {evaluate(env, q_ql, 200):.1f}")
+    print(f"Greedy return, SARSA:      {evaluate(env, q_sarsa, 200):.1f}")
 
     if SHOW_PLOT:
         plt.figure(figsize=(8, 4))
