@@ -1,13 +1,10 @@
 """Tabular Q-learning on FrozenLake-v1.
 
-One number per (state, action) in a 16x4 array, nudged towards the best thing we
-currently believe about the next state:
-
     Q(s,a) += alpha * (r + gamma * max_a' Q(s',a') - Q(s,a))
 
-Set SLIPPERY = True for the stochastic ice, which is a much harder problem.
+Set SLIPPERY = True for the stochastic ice.
 
-    python 01_tabular/q_learning_frozenlake.py
+    python q_learning_frozenlake.py
 """
 
 import gymnasium as gym
@@ -40,7 +37,6 @@ def q_learning_episode(env, q, epsilon, alpha, gamma):
         next_state, reward, terminated, truncated, _ = env.step(action)
         done = terminated or truncated
 
-        # Nothing follows a terminal state, so its target is just the reward.
         target = reward if terminated else reward + gamma * np.max(q[next_state])
         q[state, action] += alpha * (target - q[state, action])
 
@@ -48,7 +44,7 @@ def q_learning_episode(env, q, epsilon, alpha, gamma):
 
 
 def evaluate(env, q, n_episodes=100):
-    """Return with epsilon = 0. FrozenLake pays 1 for the goal, so this is a success rate."""
+    """Greedy success rate (FrozenLake pays 1 at the goal)."""
     total = 0.0
     for _ in range(n_episodes):
         state, _ = env.reset()

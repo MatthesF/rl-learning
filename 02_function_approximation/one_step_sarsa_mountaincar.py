@@ -1,18 +1,12 @@
 """One-step SARSA with tile coding on MountainCar-v0.
 
-MountainCar's state is two continuous numbers, so a table has nowhere to put it. Tile coding
-lays several coarse grids over the state space, each shifted a little, and a state lights up
-one tile per grid. Q is then just a sum of the weights on the active tiles:
+Several shifted grids; a state lights one tile per grid, and Q is the sum of those weights:
 
     Q(s,a) = sum of weights[a, active_tiles(s)]
 
-which makes the SARSA update the same one as the tabular version, spread over a handful of
-weights instead of a single cell.
+An untrained agent sits at −200: one cost per step, 200-step limit, goal never reached.
 
-MountainCar's 200-step limit counts as the end of the episode here, which is why an untrained
-agent sits at exactly -200: one point of cost per step, goal never reached.
-
-    python 02_function_approximation/one_step_sarsa_mountaincar.py
+    python one_step_sarsa_mountaincar.py
 """
 
 from pathlib import Path

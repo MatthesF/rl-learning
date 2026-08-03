@@ -1,21 +1,15 @@
 """One-step actor-critic on CartPole-v1.
 
-REINFORCE has to wait for the episode to finish before it knows G_t. The critic removes that
-wait by bootstrapping after a single step:
+Bootstrap after every step instead of waiting for G_t (Sutton & Barto 13.5):
 
     delta = r + gamma * V(s') - V(s)
+    actor  -= I * delta * grad log pi     with I = gamma^t
+    critic -= delta * grad V
 
-so both networks update on every timestep. This is Sutton & Barto's episodic one-step
-actor-critic (13.5), including the discount accumulator I = gamma^t, which multiplies the
-actor update only.
+Fragile: can hit 500 or collapse to ~9 and stay there. Nothing limits how far one
+step may move the policy — that is what PPO adds.
 
-This one is fragile, and that is worth seeing. Runs reach the 500 cap, but they can also climb
-to 200-350 and then collapse to ~9 and stay there: entropy goes to nearly zero, the logits blow
-up, and no gradient is left to escape with. Lower learning rates and an entropy bonus delay it
-without fixing it. The real problem is that nothing limits how far one step may move the
-policy, which is what PPO adds.
-
-    python 04_policy_gradients/actor_critic_cartpole.py
+    python actor_critic_cartpole.py
 """
 
 import gymnasium as gym
@@ -45,10 +39,9 @@ VALUE_LR = 3e-4
 
 def run_actor_critic_episode(env, policy, value_network, policy_optimizer,
                              value_optimizer, gamma=GAMMA):
-    """One episode, with an update after every single step."""
     state, _ = env.reset()
     episode_return, done = 0.0, False
-    discount = 1.0   # I in the book's pseudocode
+    discount = 1.0   # I = gamma^t
 
     while not done:
         action, log_prob = sample_action(state, policy)

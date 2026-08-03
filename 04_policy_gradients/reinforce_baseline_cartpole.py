@@ -1,15 +1,12 @@
 """REINFORCE with a learned baseline on CartPole-v1.
 
-Vanilla REINFORCE weights every action by the raw return, so a state that is simply good
-makes every action taken there look good. Subtracting a learned V(s) asks the sharper
-question — was this action better than expected?
+Raw returns credit every action in a good state. Subtract V(s):
 
     A_t = G_t - V(s_t)
 
-The expected gradient is unchanged, the variance is much smaller, and the curve stops
-collapsing into the deep dips vanilla REINFORCE produces.
+Same expected gradient, much lower variance.
 
-    python 04_policy_gradients/reinforce_baseline_cartpole.py
+    python reinforce_baseline_cartpole.py
 """
 
 import gymnasium as gym
@@ -37,7 +34,6 @@ from reinforce_cartpole import (
 
 
 def create_value_network(n_obs):
-    """One output: V(s), the return we expect from this state."""
     return nn.Sequential(
         nn.Linear(n_obs, 128), nn.ReLU(),
         nn.Linear(128, 128), nn.ReLU(),

@@ -1,17 +1,14 @@
 """Double DQN on CartPole-v1.
 
-`max_a' Q(s',a')` is biased upwards: the max of noisy estimates lands on whichever action
-got lucky, and that error gets baked into the target. Double DQN splits the two jobs the max
-was doing at once:
+`max Q(s',·)` is optimistic: the max of noisy estimates picks the lucky action.
+Split the two jobs:
 
-    online net   SELECTS the next action    argmax_a' Q_online(s',a')
-    target net   EVALUATES it               Q_target(s', that action)
+    online   SELECTS   argmax_a' Q_online(s',a')
+    target   EVALUATES Q_target(s', that action)
 
-Two independent sets of weights have to agree before an action looks good, which removes most
-of the built-in optimism. Everything else — buffer, target sync, loss — is imported unchanged
-from dqn_cartpole.py, so the only difference between the two runs is this target.
+Everything else is imported from dqn_cartpole.py.
 
-    python 03_deep_rl/double_dqn_cartpole.py
+    python double_dqn_cartpole.py
 """
 
 import random

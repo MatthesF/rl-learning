@@ -1,15 +1,12 @@
 """Vanilla REINFORCE on CartPole-v1.
 
-The first method here with no Q at all. The network *is* the policy: it outputs a probability
-per action, we sample from it, and afterwards we push up the log-probability of whatever the
-good episodes did:
+No Q — the network *is* the policy. Sample an episode, then push up log π of what worked:
 
     loss = -sum_t  gamma^t * G_t * log pi(a_t | s_t)
 
-No replay buffer, no target network, no bootstrapping. Exploration is free, because the policy
-is random by construction, so there is no epsilon to decay.
+Exploration is free: the policy is random by construction.
 
-    python 04_policy_gradients/reinforce_cartpole.py
+    python reinforce_cartpole.py
 """
 
 from pathlib import Path
@@ -32,7 +29,6 @@ SHOW_PLOT = True
 
 
 def create_policy_network(n_obs, n_actions):
-    """Outputs logits over actions — a policy, not Q-values."""
     return nn.Sequential(
         nn.Linear(n_obs, 128), nn.ReLU(),
         nn.Linear(128, 128), nn.ReLU(),
@@ -65,11 +61,7 @@ def calculate_returns(rewards, gamma):
 
 
 def run_episode(env, policy, gamma=GAMMA):
-    """Play a full episode; Monte Carlo means no update until it ends.
-
-    States are appended before stepping, so states[t] is the state the action was chosen
-    in. The baseline script needs that alignment to compute V(s_t).
-    """
+    """Full episode; states[t] is the state the action was chosen in."""
     state, _ = env.reset()
     states, log_probs, rewards = [], [], []
     done = False
@@ -90,7 +82,7 @@ def compute_loss(log_probs, returns, gamma=GAMMA):
         -(gamma ** t) * G * log_prob
         for t, (log_prob, G) in enumerate(zip(log_probs, returns))
     ]
-    return torch.stack(terms).sum()   # a list of tensors needs stacking, not sum()
+    return torch.stack(terms).sum()
 
 
 def train_reinforce(env, policy, optimizer, episodes=EPISODES, gamma=GAMMA,
@@ -152,7 +144,7 @@ def main():
     np.random.seed(SEED)
     torch.manual_seed(SEED)
 
-    env = gym.make("CartPole-v1")   # no rendering during training
+    env = gym.make("CartPole-v1")
     env.reset(seed=SEED)
     env.action_space.seed(SEED)
 

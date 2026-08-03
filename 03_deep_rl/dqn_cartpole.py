@@ -1,18 +1,15 @@
 """DQN on CartPole-v1.
 
-Same Q-learning target as the tabular version, but Q is a network:
+Q-learning with a network:
 
     loss = Huber( Q(s,a),  r + gamma * max_a' Q_target(s',a') )
 
-Replacing the table with a network breaks two assumptions, and the two famous tricks here
-are exactly the repairs:
+Two repairs for the table→network jump:
 
-    replay buffer    consecutive steps are almost identical, and gradient descent wants
-                     independent samples, so store transitions and sample randomly
-    target network   the target is computed from the same weights being trained, so it
-                     moves every step; freeze a copy and refresh it now and then
+    replay buffer    sample random past transitions (breaks consecutive-step correlation)
+    target network   freeze a copy of Q so the TD target stops moving every step
 
-    python 03_deep_rl/dqn_cartpole.py
+    python dqn_cartpole.py
 """
 
 import random
@@ -45,7 +42,6 @@ SHOW_PLOT = True
 
 
 def create_q_network(n_obs, n_actions):
-    """One output per action, so a single forward pass gives Q(s, ·)."""
     return nn.Sequential(
         nn.Linear(n_obs, 128), nn.ReLU(),
         nn.Linear(128, 128), nn.ReLU(),
@@ -77,7 +73,7 @@ def epsilon_by_step(step, start=EPS_START, end=EPS_END, decay_steps=EPS_DECAY_ST
 
 class ReplayBuffer:
     def __init__(self, capacity=BUFFER_CAPACITY):
-        self.buffer = deque(maxlen=capacity)   # deque evicts the oldest in O(1)
+        self.buffer = deque(maxlen=capacity)
 
     def push(self, state, action, reward, next_state, terminated):
         self.buffer.append((state, action, reward, next_state, terminated))
@@ -103,7 +99,6 @@ def train_step(online, target, buffer, optimizer, td_target_fn=compute_td_target
     next_states = torch.as_tensor(np.array(next_states), dtype=torch.float32)
     terminateds = torch.as_tensor(terminateds, dtype=torch.float32)
 
-    # The net outputs Q for every action; keep the one that was actually taken.
     q_taken = online(states).gather(1, actions.unsqueeze(1)).squeeze(1)
     with torch.no_grad():
         td_target = td_target_fn(online, target, next_states, rewards, terminateds, GAMMA)
@@ -194,7 +189,7 @@ def main():
     np.random.seed(SEED)
     torch.manual_seed(SEED)
 
-    env = gym.make("CartPole-v1")   # no rendering during training
+    env = gym.make("CartPole-v1")
     env.reset(seed=SEED)
     env.action_space.seed(SEED)
 

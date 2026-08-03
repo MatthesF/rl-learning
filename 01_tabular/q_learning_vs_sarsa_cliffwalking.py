@@ -1,16 +1,12 @@
 """Q-learning vs SARSA on CliffWalking-v0.
 
-Same table, same exploration, one difference in the target:
+    Q-learning  r + gamma * max_a' Q(s',a')    best next action
+    SARSA       r + gamma * Q(s',a')           next action actually taken
 
-    Q-learning  r + gamma * max_a' Q(s',a')    the best next action
-    SARSA       r + gamma * Q(s',a')           the next action it will really take
+Q-learning hugs the cliff and falls off while epsilon > 0. SARSA's target includes
+its own slips, so it walks the long way around.
 
-So Q-learning learns the optimal route, which runs along the cliff edge, and keeps falling
-off it while epsilon is still non-zero. SARSA's target includes its own random slips, so it
-learns that the cliff edge is expensive and walks around. Off-policy learns the best policy;
-on-policy learns the best policy *given that you explore*.
-
-    python 01_tabular/q_learning_vs_sarsa_cliffwalking.py
+    python q_learning_vs_sarsa_cliffwalking.py
 """
 
 import gymnasium as gym

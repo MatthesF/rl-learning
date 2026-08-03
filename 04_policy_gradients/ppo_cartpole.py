@@ -1,27 +1,15 @@
 """PPO on CartPole-v1.
 
-Every script before this one threw the episode away after a single gradient step. PPO reuses
-a whole rollout ten times over, which is only safe if the policy cannot run away from the data
-it was collected with. The clip is that safety belt:
+Reuse a rollout for EPOCHS updates. Safe only if the policy cannot run away from the
+data it was collected with — that is the clip:
 
     ratio = pi_new(a|s) / pi_old(a|s)
     loss  = -min( ratio * A,  clip(ratio, 1-eps, 1+eps) * A )
 
-Read the min as: once an action has become much more likely than it was when the data was
-collected, the clipped branch is the smaller one, its gradient is flat, and that sample stops
-pushing. Good actions get promoted, but only so far per rollout — the answer to the saturation
-that kills actor_critic_cartpole.py.
+vs gae_cartpole.py: fixed-length rollouts (crossing episode boundaries), store actions
+and detached old log-probs, train in shuffled minibatches. Advantages from compute_gae.
 
-Three things change compared to gae_cartpole.py:
-
-    rollout      ROLLOUT_STEPS of experience crossing episode boundaries, not one episode
-    old data     store actions and *detached* log-probs, so log pi can be recomputed later
-    reuse        EPOCHS passes over the same rollout in shuffled minibatches
-
-The advantages come from compute_gae, imported unchanged. The gamma^t term the earlier scripts
-carried is gone: PPO averages over the batch instead, as everyone actually runs it.
-
-    python 04_policy_gradients/ppo_cartpole.py
+    python ppo_cartpole.py
 """
 
 import gymnasium as gym
@@ -48,22 +36,17 @@ from reinforce_cartpole import (
 )
 
 TOTAL_STEPS = 150_000
-ROLLOUT_STEPS = 2048     # experience collected before each update
-EPOCHS = 10              # passes over that same experience
+ROLLOUT_STEPS = 2048
+EPOCHS = 10
 MINIBATCH_SIZE = 64
-CLIP = 0.2               # how far pi_new may drift from pi_old
+CLIP = 0.2
 LR = 3e-4
-ENTROPY_COEF = 0.01      # small bonus for staying unsure
+ENTROPY_COEF = 0.01
 MAX_GRAD_NORM = 0.5
 
 
 def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
-    """Run n_steps, resetting and carrying on whenever an episode ends.
-
-    Unlike collect_episode in gae_cartpole.py, the log-probs are stored as plain floats.
-    They are the *old* policy's opinion, a fixed reference point for the ratio, so they
-    must not be attached to a graph that later gets differentiated ten more times.
-    """
+    """n_steps of experience; old log-probs stored as floats (no graph)."""
     states, actions, old_log_probs = [], [], []
     rewards, values, dones = [], [], []
     episode_returns, episode_return = [], 0.0
@@ -79,15 +62,12 @@ def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
         next_state, reward, terminated, truncated, _ = env.step(int(action.item()))
         done = terminated or truncated
 
-        # Everything is recorded for s_t, the state the action was chosen in.
         states.append(np.asarray(state, dtype=np.float32))
         actions.append(int(action.item()))
         old_log_probs.append(float(log_prob))
         rewards.append(float(reward))
         values.append(float(value))
-        # `done`, not `terminated`: whatever the reason, the next stored state comes from a
-        # fresh reset, so the advantage chain has to be cut here. That treats CartPole's
-        # 500-step limit as a real ending, which is the one approximation in this file.
+        # Cut the advantage chain on any episode end (incl. CartPole's 500-step truncate).
         dones.append(done)
 
         episode_return += float(reward)
@@ -103,7 +83,7 @@ def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
             value_network(torch.as_tensor(state, dtype=torch.float32)).squeeze(-1)
         )
 
-    rollout = {
+    return state, {
         "states": states,
         "actions": actions,
         "old_log_probs": old_log_probs,
@@ -113,49 +93,37 @@ def collect_rollout(env, state, policy, value_network, n_steps=ROLLOUT_STEPS):
         "next_value": next_value,
         "episode_returns": episode_returns,
     }
-    return state, rollout
 
 
 def ppo_losses(policy, value_network, states, actions, old_log_probs, advantages,
                value_targets):
-    """The clipped surrogate objective, plus the usual critic regression."""
     dist = D.Categorical(logits=policy(states))
     new_log_probs = dist.log_prob(actions)
-
-    # A ratio, computed in log space: exp(log a - log b) == a / b.
     ratio = torch.exp(new_log_probs - old_log_probs)
 
     unclipped = ratio * advantages
     clipped = ratio.clamp(1.0 - CLIP, 1.0 + CLIP) * advantages
-    # min() over the two branches is what makes the clip one-sided: it never rewards a
-    # move past the boundary, but a move that made things worse is not let off the hook.
     policy_loss = -torch.min(unclipped, clipped).mean()
     policy_loss = policy_loss - ENTROPY_COEF * dist.entropy().mean()
 
     values = value_network(states).squeeze(-1)
     value_loss = F.smooth_l1_loss(values, value_targets)
-
     return policy_loss, value_loss
 
 
 def update(policy, value_network, policy_optimizer, value_optimizer, rollout,
            advantages, value_targets):
-    """EPOCHS passes over the same rollout, in freshly shuffled minibatches."""
     states = torch.as_tensor(np.asarray(rollout["states"]), dtype=torch.float32)
     actions = torch.as_tensor(rollout["actions"], dtype=torch.int64)
     old_log_probs = torch.as_tensor(rollout["old_log_probs"], dtype=torch.float32)
     value_targets = torch.as_tensor(value_targets, dtype=torch.float32)
 
-    # Whiten once over the whole rollout; per-minibatch statistics would be far too noisy.
     advantages = torch.as_tensor(advantages, dtype=torch.float32)
     advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
 
     n = len(states)
     for _ in range(EPOCHS):
-        # Shuffling matters: fixed minibatches would correlate each update with a slice
-        # of the trajectory rather than the rollout as a whole.
         order = torch.randperm(n)
-
         for start in range(0, n, MINIBATCH_SIZE):
             batch = order[start:start + MINIBATCH_SIZE]
             policy_loss, value_loss = ppo_losses(
@@ -163,7 +131,6 @@ def update(policy, value_network, policy_optimizer, value_optimizer, rollout,
                 states[batch], actions[batch], old_log_probs[batch],
                 advantages[batch], value_targets[batch],
             )
-
             policy_optimizer.zero_grad()
             value_optimizer.zero_grad()
             policy_loss.backward()
@@ -182,7 +149,6 @@ def train_ppo(env, policy, value_network, policy_optimizer, value_optimizer,
     with tqdm(total=total_steps, desc=desc, unit="step") as pbar:
         for _ in range(total_steps // ROLLOUT_STEPS):
             state, rollout = collect_rollout(env, state, policy, value_network)
-
             advantages, value_targets = compute_gae(
                 rollout["rewards"], rollout["values"], rollout["dones"],
                 rollout["next_value"], gamma, lam,

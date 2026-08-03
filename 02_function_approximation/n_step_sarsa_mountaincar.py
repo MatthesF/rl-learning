@@ -1,16 +1,12 @@
 """n-step SARSA with tile coding on MountainCar-v0.
 
-Same tiles as the one-step version, but the target waits for n rewards before bootstrapping:
+Same tiles, but the target waits for n rewards before bootstrapping:
 
-    G = r_1 + gamma*r_2 + ... + gamma^(n-1)*r_n + gamma^n * Q(s_n, a_n)
+    G = r_1 + … + gamma^(n-1)*r_n + gamma^n * Q(s_n, a_n)
 
-That means the update for step tau can only happen at step tau + n, so the loop runs n steps
-ahead of the step it is updating (Sutton & Barto call that index tau). n = 1 collapses back to
-ordinary SARSA; larger n propagates the goal reward backwards faster but adds variance.
+Update for step τ happens at τ+n (Sutton & Barto). n=1 is ordinary SARSA.
 
-Read one_step_sarsa_mountaincar.py first.
-
-    python 02_function_approximation/n_step_sarsa_mountaincar.py
+    python n_step_sarsa_mountaincar.py
 """
 
 import gymnasium as gym
